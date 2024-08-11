@@ -26,6 +26,8 @@
 {{- $loading := .loading -}}
 
 {{- $caption := .caption }}
+{{- $captionClass := .captionClass -}}
+{{- $captionStyle := .captionStyle -}}
 {{- $figure := .figure -}}
 {{- $figureClass := .figureClass -}}
 {{- $figureStyle := .figureStyle -}}
@@ -145,6 +147,6 @@
             alt="{{ $alt }}"
         />
     {{ if not $disableImageOptimization }}</picture>{{ end }}
-    {{ with $caption }}<figcaption>{{ . | markdownify }}</figcaption>{{ end }}
+    {{ with $caption }}<figcaption {{ with $captionClass }}class="{{ . }}"{{ end }} {{ with $captionStyle }}style="{{ . }}"{{ end }}>{{ . | markdownify }}</figcaption>{{ end }}
     {{ with $figure }}<figure>{{ end }}
 {{ end }}
