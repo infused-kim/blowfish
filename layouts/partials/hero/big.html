@@ -29,32 +29,14 @@
 {{- with .Page.Params.alt }}{{ $alt = . }}{{ end -}}
 
 {{- with $featured -}}
-    {{ if strings.HasSuffix $featured ".svg" }}
-        {{ with . }}
-        <figure>
-            <img class="w-full rounded-lg single_hero_round nozoom" alt="{{ $alt }}" src="{{ .RelPermalink }}">
-            {{ if $caption }}
-                <figcaption class="text-sm text-neutral-700 dark:text-neutral-400 hover:underline" style="text-align: center;"> {{ $caption | markdownify }} </figcaption>
-            {{end}}
-        </figure>
-        {{ end }}
-    {{ else if $disableImageOptimization }}
-        {{ with . }}
-        <figure>
-            <img class="w-full rounded-lg single_hero_round nozoom" alt="{{ $alt }}" width="{{ .Width }}" height="{{ .Height }}" src="{{ .RelPermalink }}">
-            {{ if $caption }}
-                <figcaption class="text-sm text-neutral-700 dark:text-neutral-400 hover:underline" style="text-align: center;"> {{ $caption | markdownify }} </figcaption>
-            {{end}}
-        </figure>
-        {{ end }}
-    {{ else }}
-        {{ with .Resize (print ($.Site.Params.backgroundImageWidth | default "1200") "x") }}
-        <figure>
-            <img class="w-full rounded-lg single_hero_round nozoom" alt="{{ $alt }}" width="{{ .Width }}" height="{{ .Height }}" src="{{ .RelPermalink }}">
-            {{ if $caption }}
-                <figcaption class="text-sm text-neutral-700 dark:text-neutral-400 hover:underline" style="text-align: center;"> {{ $caption | markdownify }} </figcaption>
-            {{end}}
-        </figure>
-        {{ end }}
-    {{ end }}
+    {{ partial "img" (dict
+        "img" .
+        "class" "w-full rounded-lg single_hero_round nozoom"
+        "width" ($.Site.Params.backgroundImageWidth | default 1200)
+        "resizeWidths" (slice 330 660 1200 2400)
+        "alt" $alt
+        "caption" $caption
+        "captionClass" "text-sm text-neutral-700 dark:text-neutral-400 hover:underline"
+        "captionStyle" "text-align: center;"
+    ) }}
 {{- end -}}
