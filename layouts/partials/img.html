@@ -67,48 +67,94 @@
       {{- $disableImageOptimizationWebp = true }}
   {{- end }}
 
-  {{- /* Since $img.Width and $img.Height are only available on raster images(and not svg), we check if we are optimizing images here. */ -}}
+  {{- /* Only calculate widths on non-svgs (non-optimizable images) since it can't be easily retrieved for svgs */ -}}
   {{- if not $disableImageOptimization }}
-    {{- if or (not $width) (not $height) }}
-      {{- if and (not $width) (not $height) }}
-        {{- /* If neither height nor width are set, use image dimensions */ -}}
-        {{- $width = $img.Width }}
-        {{- $height = $img.Height }}
-      {{- else if $width }}
-        {{- /* Calculate the height using the width's resize factor */ -}}
-        {{- $ratio := (div ($width | float) $img.Width) -}}
-        {{- $height = (mul $img.Height $ratio) | int -}}
-      {{- else if $height }}
+    {{- if not $width }}
+      {{- if $height}}
         {{- /* Calculate the width using the height's resize factor */ -}}
         {{- $ratio := (div ($height | float) $img.Height) -}}
         {{- $width = (mul $img.Width $ratio) | int -}}
+      {{- else }}
+        {{ $width = $img.Width }}
       {{- end }}
+    {{ end }}
 
-      {{- /* slice with widths to which the image should be resized */ -}}
-      {{- if not $resizeWidths -}}
-        {{- $resizeWidths = slice (div $width 2) $width (mul $width 2) -}}
-      {{- end -}}
-      {{- if not (reflect.IsSlice $resizeWidths) -}}
-        {{- errorf "Expected $resizeWidths to be a slice, but got %T" $resizeWidths -}}
-      {{- end -}}
+    {{- /* slice with widths to which the image should be resized */ -}}
+    {{- if not $resizeWidths -}}
+      {{- $resizeWidths = slice (div $width 2) $width (mul $width 2) -}}
     {{- end -}}
+
+    {{- if not (reflect.IsSlice $resizeWidths) -}}
+      {{- errorf "Expected $resizeWidths to be a slice, but got %T" $resizeWidths -}}
+    {{- end -}}
+
     {{- /*
         * Only include widths that are smaller than the original. We also
         * exclude the original width, because we will include the original
         * image in the output by default.
         */ -}}
-    {{- $filteredWidths := slice -}}
+    {{- $filteredResizeWidths := slice -}}
     {{- range $resizeWidths -}}
       {{- if lt . $img.Width -}}
-        {{- $filteredWidths = append . $filteredWidths -}}
+        {{- $filteredResizeWidths = append . $filteredResizeWidths -}}
       {{- end -}}
     {{- end -}}
-    {{- $resizeWidths = $filteredWidths | uniq | sort -}}
+    {{- $resizeWidths = $filteredResizeWidths | uniq | sort -}}
   {{- end }}
 
   {{- $imgFallback := $img }}
   {{- if and (not $disableImageOptimization ) (lt $width $img.Width) }}
     {{- $imgFallback = ($img.Resize (printf "%dx" $width)) }}
+  {{- end }}
+
+  {{- $imgFallbackWidth := ""}}
+  {{- $imgFallbackHeight := ""}}
+  {{- if and $width $height }}
+    {{- $imgFallbackWidth = $width }}
+    {{- $imgFallbackHeight = $height }}
+  {{- else if eq .MediaType.SubType "svg"}}
+    {{ $svgWidth := "" }}
+    {{ $svgHeight := "" }}
+    {{ $svgContent := .Content }}
+
+    {{- $widthRE := `width="([\d.]+)"` -}}
+
+    {{/* Workaround for hugo's lack of proper regex group support */}}
+    {{- $widthMatches := findRE $widthRE $svgContent 1 -}}
+    {{- if gt (len $widthMatches) 0 -}}
+      {{- $widthStr := index $widthMatches 0 -}}
+      {{- $svgWidth = replaceRE $widthRE "$1" $widthStr -}}
+    {{- end -}}
+
+    {{- $heightRE := `height="([\d.]+)"` -}}
+    {{- $heightMatches := findRE $heightRE $svgContent 1 -}}
+    {{/* Workaround for hugo's lack of proper regex group support */}}
+    {{- if gt (len $heightMatches) 0 -}}
+      {{- $heightStr := index $heightMatches 0 -}}
+      {{- $svgHeight = replaceRE $heightRE "$1" $heightStr -}}
+    {{- end -}}
+
+    {{- if or (not $svgWidth) (not $svgHeight) }}
+      {{/* Reset size to make sure we don't get a mix of values */}}
+      {{- $svgWidth = "" }}
+      {{- $svgHeight = "" }}
+
+      {{- $viewBoxRE := `viewBox="([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"` -}}
+      {{- $viewBoxMatch := findRE $viewBoxRE $svgContent 1 -}}
+      {{- if gt (len $viewBoxMatch) 0 -}}
+        {{- $viewBox := index $viewBoxMatch 0 -}}
+        {{- $svgWidth = replaceRE $viewBoxRE "$3" $viewBox -}}
+        {{- $svgHeight = replaceRE $viewBoxRE "$4" $viewBox -}}
+      {{- end -}}
+    {{ end }}
+
+    {{- if and $svgWidth $svgHeight }}
+      {{- $imgFallbackWidth = $svgWidth | float | int }}
+      {{- $imgFallbackHeight = $svgHeight | float | int }}
+    {{- end }}
+  {{- else }}
+    {{- $imgFallbackWidth = $imgFallback.Width }}
+    {{- $imgFallbackHeight = $imgFallback.Height }}
   {{- end }}
 
   {{ with $figure }}<figure {{ with $figureClass }}class="{{ . }}"{{ end }} {{ with $figureStyle }}style="{{ . }}"{{ end }}>{{ end }}
@@ -144,10 +190,8 @@
             {{ with $class }}class="{{ . }}"{{ end }}
             {{ with $style }}style="{{ . }}"{{ end }}
             {{ with $loading }}loading="{{ . }}"{{ end }}
-            {{- if in $optimizableTypesResize .MediaType.SubType -}}
-              width="{{ $imgFallback.Width }}"
-              height="{{ $imgFallback.Height }}"
-            {{- end }}
+            {{ with $imgFallbackWidth }}width="{{ . }}"{{ end }}
+            {{ with $imgFallbackHeight }}height="{{ . }}"{{ end }}
             src="{{ $imgFallback.RelPermalink }}"
             alt="{{ $alt }}"
         />
