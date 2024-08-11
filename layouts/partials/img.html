@@ -49,7 +49,7 @@
     {{- $img = $img.Process . }}
   {{ end }}
 
-  {{- $optimizableTypesResize := slice "jpg" "jpeg" "png" "gif" }}
+  {{- $optimizableTypesResize := slice "jpg" "jpeg" "png" }}
   {{- if not (in $optimizableTypesResize .MediaType.SubType) -}}
       {{- $disableImageOptimization = true }}
   {{- end }}
@@ -96,7 +96,7 @@
   {{- $resizeWidths = $filteredWidths | uniq | sort -}}
 
   {{- $imgFallback := $img }}
-  {{- if lt $width $img.Width}}
+  {{- if and (lt $width $img.Width) (not $disableImageOptimization ) }}
     {{- $imgFallback = ($img.Resize (printf "%dx" $width)) }}
   {{- end }}
 
