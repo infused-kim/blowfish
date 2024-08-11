@@ -1,0 +1,139 @@
+{{- $disableImageOptimization := .Page.Site.Params.disableImageOptimization | default false -}}
+{{- $disableImageOptimizationWebp := .Page.Site.Params.disableImageOptimizationWebp | default false -}}
+
+{{- if not .Page -}}
+  {{- errorf "img Page parameter is required, but not set." -}}
+{{- end -}}
+{{- $Page := .Page -}}
+
+{{- if not .src -}}
+  {{- errorf "img src parameter is required, but not set." -}}
+{{- end -}}
+{{- $src := urls.Parse .src -}}
+
+{{- $resizeWidths := .resizeWidths  -}}
+{{- $width := .width -}}
+{{- $height := .height -}}
+{{- $alt := .alt -}}
+{{- $class := .class -}}
+{{- $style := .style -}}
+{{- $loading := .loading -}}
+
+{{- $caption := .caption }}
+{{- $figure := .figure -}}
+{{- $figureClass := .figureClass -}}
+{{- $figureStyle := .figureStyle -}}
+{{- if $caption -}}
+  {{- if not $alt}}
+    {{- $alt = $caption}}
+  {{ end }}
+{{- end -}}
+
+{{- /* Fetch the image to get the dimensions */ -}}
+{{- $img := "" }}
+{{- if $Page.Resources.GetMatch ($src.String) }}
+  {{- $img = $Page.Resources.GetMatch ($src.String) }}
+{{- else if resources.GetMatch ($src.String) }}
+  {{- $img = resources.Get ($src.String) }}
+{{ else if findRE "^https?" $src.Scheme }}
+    {{ $img = resources.GetRemote ($src.String) }}
+{{- else }}
+    {{- errorf "Could not get resource for img src '%s' on page '%s'" $src $Page.Path -}}
+{{- end }}
+
+{{ with $img}}
+  {{- /* warnf "Generating img for: '%s'" ($src.String) */ -}}
+
+  {{- $optimizableTypesResize := slice "jpg" "jpeg" "png" "gif" }}
+  {{- if not (in $optimizableTypesResize .MediaType.SubType) -}}
+      {{- $disableImageOptimization = true }}
+  {{- end }}
+
+  {{- $optimizableTypesWebp := slice "jpg" "jpeg" "png" }}
+  {{- if not (in $optimizableTypesWebp .MediaType.SubType) -}}
+      {{- $disableImageOptimizationWebp = true }}
+  {{- end }}
+
+  {{- if or (not $width) (not $height) }}
+    {{- if and (not $width) (not $height) }}
+      {{- /* If neither height nor width are set, use image dimensions */ -}}
+      {{- $width = $img.Width }}
+      {{- $height = $img.Height }}
+    {{- else if $width }}
+      {{- /* Calculate the height using the width's resize factor */ -}}
+      {{- $ratio := (div ($width | float) $img.Width) -}}
+      {{- $height = (mul $img.Height $ratio) | int -}}
+    {{- else if $height }}
+      {{- /* Calculate the width using the height's resize factor */ -}}
+      {{- $ratio := (div ($height | float) $img.Height) -}}
+      {{- $width = (mul $img.Width $ratio) | int -}}
+    {{- end }}
+
+    {{- /* slice with widths to which the image should be resized */ -}}
+    {{- if not $resizeWidths -}}
+      {{- $resizeWidths = slice (div $width 2) $width (mul $width 2) -}}
+    {{- end -}}
+    {{- if not (reflect.IsSlice $resizeWidths) -}}
+      {{- errorf "Expected $resizeWidths to be a slice, but got %T" $resizeWidths -}}
+    {{- end -}}
+  {{- end -}}
+  {{- /*
+       * Only include widths that are smaller than the original. We also
+       * exclude the original width, because we will include the original
+       * image in the output by default.
+       */ -}}
+  {{- $filteredWidths := slice -}}
+  {{- range $resizeWidths -}}
+    {{- if lt . $img.Width -}}
+      {{- $filteredWidths = append . $filteredWidths -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $resizeWidths = $filteredWidths | uniq | sort -}}
+
+  {{- $imgFallback := $img }}
+  {{- if lt $width $img.Width}}
+    {{- $imgFallback = ($img.Resize (printf "%dx" $width)) }}
+  {{- end }}
+
+  {{ with $figure }}<figure {{ with $figureClass }}class="{{ . }}"{{ end }} {{ with $figureStyle }}style="{{ . }}"{{ end }}>{{ end }}
+    {{ if not $disableImageOptimization }}
+      <picture>
+        {{ if not $disableImageOptimizationWebp }}
+          <source type="image/webp" srcset="
+          {{ range $resizeWidth := $resizeWidths }}
+            {{- with $img_resized := $img.Resize (printf "%dx webp" $resizeWidth) -}}
+              {{ with .Err }}
+                {{ errorf "Failed to resize image '%s': %s" ($img.Name .)}}
+              {{ else }}
+                {{ $img_resized.RelPermalink }} {{ $resizeWidth }}w,
+              {{ end }}
+            {{- end -}}
+          {{ end }}
+          {{ ($img.Process "webp").RelPermalink }} {{ $img.Width }}w">
+        {{ end }}
+
+          <source srcset="
+          {{ range $resizeWidth := $resizeWidths }}
+            {{- with $img_resized := $img.Resize (printf "%dx" $resizeWidth) -}}
+              {{ with .Err }}
+                {{ errorf "Failed to resize image '%s': %s" ($img.Name .)}}
+              {{ else }}
+                {{ $img_resized.RelPermalink }} {{ $resizeWidth }}w,
+              {{ end }}
+            {{- end -}}
+          {{ end }}
+          {{ $img.RelPermalink }} {{ $img.Width }}w">
+      {{ end }}
+        <img
+            {{ with $class }}class="{{ . }}"{{ end }}
+            {{ with $style }}style="{{ . }}"{{ end }}
+            {{ with $loading }}loading="{{ . }}"{{ end }}
+            width="{{ $imgFallback.Width }}"
+            height="{{ $imgFallback.Height }}"
+            src="{{ $imgFallback.RelPermalink }}"
+            alt="{{ $alt }}"
+        />
+    {{ if not $disableImageOptimization }}</picture>{{ end }}
+    {{ with $caption }}<figcaption>{{ . | markdownify }}</figcaption>{{ end }}
+    {{ with $figure }}<figure>{{ end }}
+{{ end }}

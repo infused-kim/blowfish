@@ -1,0 +1,30 @@
+{{ $resizeWidths := false }}
+
+{{ $resizeWidthsParam := .Get "resizeWidths" }}
+{{ if $resizeWidthsParam }}
+  {{ $resizeWidths := slice }}
+  {{ $resizeWidthsStrings := split $resizeWidthsParam "," }}
+  {{ range $resizeWidthsStrings }}
+    {{ $resizeWidths = $resizeWidths | append (.) }}
+  {{ end }}
+{{ else }}
+
+{{ end }}
+
+{{ partial "img.html"
+  (dict
+    "Page" .Page
+    "src" (.Get "src")
+    "resizeWidths" $resizeWidths
+    "width" (.Get "width")
+    "height" (.Get "height")
+    "alt" (.Get "alt")
+    "caption" (.Get "caption")
+    "class" (.Get "class")
+    "style" (.Get "style")
+    "loading" (.Get "loading")
+    "figure" (.Get "figure")
+    "figureClass" (.Get "figureClass")
+    "figureStyle" (.Get "figureStyle")
+  )
+}}
