@@ -1,15 +1,20 @@
 {{- $disableImageOptimization := .Page.Site.Params.disableImageOptimization | default false -}}
 {{- $disableImageOptimizationWebp := .Page.Site.Params.disableImageOptimizationWebp | default false -}}
 
-{{- if not .Page -}}
-  {{- errorf "img Page parameter is required, but not set." -}}
-{{- end -}}
 {{- $Page := .Page -}}
-
-{{- if not .src -}}
-  {{- errorf "img src parameter is required, but not set." -}}
-{{- end -}}
 {{- $src := urls.Parse .src -}}
+
+
+{{- $img := .img}}
+{{- if not $img -}}
+  {{- if not $Page -}}
+    {{- errorf "img Page parameter is required, but not set." -}}
+  {{- end -}}
+
+  {{- if not $src -}}
+    {{- errorf "img src parameter is required, but not set." -}}
+  {{- end -}}
+{{- end }}
 
 {{- $process := .process  -}}
 {{- $resizeWidths := .resizeWidths  -}}
@@ -31,16 +36,17 @@
 {{- end -}}
 
 {{- /* Fetch the image to get the dimensions */ -}}
-{{- $img := "" }}
-{{- if $Page.Resources.GetMatch ($src.String) }}
-  {{- $img = $Page.Resources.GetMatch ($src.String) }}
-{{- else if resources.GetMatch ($src.String) }}
-  {{- $img = resources.Get ($src.String) }}
-{{ else if findRE "^https?" $src.Scheme }}
-    {{ $img = resources.GetRemote ($src.String) }}
-{{- else }}
-    {{- errorf "Could not get resource for img src '%s' on page '%s'" $src $Page.Path -}}
-{{- end }}
+{{- if not $img }}
+  {{- if $Page.Resources.GetMatch ($src.String) }}
+    {{- $img = $Page.Resources.GetMatch ($src.String) }}
+  {{- else if resources.GetMatch ($src.String) }}
+    {{- $img = resources.Get ($src.String) }}
+  {{ else if findRE "^https?" $src.Scheme }}
+      {{ $img = resources.GetRemote ($src.String) }}
+  {{- else }}
+      {{- errorf "Could not get resource for img src '%s' on page '%s'" $src $Page.Path -}}
+  {{- end }}
+{{- end -}}
 
 {{ with $img}}
   {{- /* warnf "Generating img for: '%s'" ($src.String) */ -}}
