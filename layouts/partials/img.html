@@ -67,44 +67,47 @@
       {{- $disableImageOptimizationWebp = true }}
   {{- end }}
 
-  {{- if or (not $width) (not $height) }}
-    {{- if and (not $width) (not $height) }}
-      {{- /* If neither height nor width are set, use image dimensions */ -}}
-      {{- $width = $img.Width }}
-      {{- $height = $img.Height }}
-    {{- else if $width }}
-      {{- /* Calculate the height using the width's resize factor */ -}}
-      {{- $ratio := (div ($width | float) $img.Width) -}}
-      {{- $height = (mul $img.Height $ratio) | int -}}
-    {{- else if $height }}
-      {{- /* Calculate the width using the height's resize factor */ -}}
-      {{- $ratio := (div ($height | float) $img.Height) -}}
-      {{- $width = (mul $img.Width $ratio) | int -}}
-    {{- end }}
+  {{- /* Since $img.Width and $img.Height are only available on raster images(and not svg), we check if we are optimizing images here. */ -}}
+  {{- if not $disableImageOptimization }}
+    {{- if or (not $width) (not $height) }}
+      {{- if and (not $width) (not $height) }}
+        {{- /* If neither height nor width are set, use image dimensions */ -}}
+        {{- $width = $img.Width }}
+        {{- $height = $img.Height }}
+      {{- else if $width }}
+        {{- /* Calculate the height using the width's resize factor */ -}}
+        {{- $ratio := (div ($width | float) $img.Width) -}}
+        {{- $height = (mul $img.Height $ratio) | int -}}
+      {{- else if $height }}
+        {{- /* Calculate the width using the height's resize factor */ -}}
+        {{- $ratio := (div ($height | float) $img.Height) -}}
+        {{- $width = (mul $img.Width $ratio) | int -}}
+      {{- end }}
 
-    {{- /* slice with widths to which the image should be resized */ -}}
-    {{- if not $resizeWidths -}}
-      {{- $resizeWidths = slice (div $width 2) $width (mul $width 2) -}}
+      {{- /* slice with widths to which the image should be resized */ -}}
+      {{- if not $resizeWidths -}}
+        {{- $resizeWidths = slice (div $width 2) $width (mul $width 2) -}}
+      {{- end -}}
+      {{- if not (reflect.IsSlice $resizeWidths) -}}
+        {{- errorf "Expected $resizeWidths to be a slice, but got %T" $resizeWidths -}}
+      {{- end -}}
     {{- end -}}
-    {{- if not (reflect.IsSlice $resizeWidths) -}}
-      {{- errorf "Expected $resizeWidths to be a slice, but got %T" $resizeWidths -}}
+    {{- /*
+        * Only include widths that are smaller than the original. We also
+        * exclude the original width, because we will include the original
+        * image in the output by default.
+        */ -}}
+    {{- $filteredWidths := slice -}}
+    {{- range $resizeWidths -}}
+      {{- if lt . $img.Width -}}
+        {{- $filteredWidths = append . $filteredWidths -}}
+      {{- end -}}
     {{- end -}}
-  {{- end -}}
-  {{- /*
-       * Only include widths that are smaller than the original. We also
-       * exclude the original width, because we will include the original
-       * image in the output by default.
-       */ -}}
-  {{- $filteredWidths := slice -}}
-  {{- range $resizeWidths -}}
-    {{- if lt . $img.Width -}}
-      {{- $filteredWidths = append . $filteredWidths -}}
-    {{- end -}}
-  {{- end -}}
-  {{- $resizeWidths = $filteredWidths | uniq | sort -}}
+    {{- $resizeWidths = $filteredWidths | uniq | sort -}}
+  {{- end }}
 
   {{- $imgFallback := $img }}
-  {{- if and (lt $width $img.Width) (not $disableImageOptimization ) }}
+  {{- if and (not $disableImageOptimization ) (lt $width $img.Width) }}
     {{- $imgFallback = ($img.Resize (printf "%dx" $width)) }}
   {{- end }}
 
@@ -141,8 +144,10 @@
             {{ with $class }}class="{{ . }}"{{ end }}
             {{ with $style }}style="{{ . }}"{{ end }}
             {{ with $loading }}loading="{{ . }}"{{ end }}
-            width="{{ $imgFallback.Width }}"
-            height="{{ $imgFallback.Height }}"
+            {{- if in $optimizableTypesResize .MediaType.SubType -}}
+              width="{{ $imgFallback.Width }}"
+              height="{{ $imgFallback.Height }}"
+            {{- end }}
             src="{{ $imgFallback.RelPermalink }}"
             alt="{{ $alt }}"
         />
