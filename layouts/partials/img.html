@@ -11,6 +11,7 @@
 {{- end -}}
 {{- $src := urls.Parse .src -}}
 
+{{- $process := .process  -}}
 {{- $resizeWidths := .resizeWidths  -}}
 {{- $width := .width -}}
 {{- $height := .height -}}
@@ -43,6 +44,10 @@
 
 {{ with $img}}
   {{- /* warnf "Generating img for: '%s'" ($src.String) */ -}}
+
+  {{ with $process}}
+    {{- $img = $img.Process . }}
+  {{ end }}
 
   {{- $optimizableTypesResize := slice "jpg" "jpeg" "png" "gif" }}
   {{- if not (in $optimizableTypesResize .MediaType.SubType) -}}
